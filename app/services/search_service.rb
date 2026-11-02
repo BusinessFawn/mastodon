@@ -13,7 +13,7 @@ class SearchService < BaseService
     @following = options[:following] || false
     @query_fasp = options[:query_fasp] || false
 
-    default_results.tap do |results|
+    @results = default_results.tap do |results|
       next if @query.blank? || @limit.zero?
 
       if url_query?
@@ -24,6 +24,15 @@ class SearchService < BaseService
         results[:hashtags] = perform_hashtags_search! if hashtag_searchable?
       end
     end
+  end
+
+  # Only meaningful for a single result type, as that is the only case
+  # where `offset` is honored.
+  def more_results?
+    return false if @results.nil? || @options[:type].blank? || @limit.zero?
+    return @statuses_more_results || false if @options[:type] == 'statuses'
+
+    @results.fetch(@options[:type].to_sym, []).size >= @limit
   end
 
   private
@@ -43,7 +52,9 @@ class SearchService < BaseService
   end
 
   def perform_statuses_search!
-    StatusesSearchService.new.call(
+    service = StatusesSearchService.new
+
+    service.call(
       @query,
       @account,
       limit: @limit,
@@ -51,7 +62,7 @@ class SearchService < BaseService
       account_id: @options[:account_id],
       min_id: @options[:min_id],
       max_id: @options[:max_id]
-    )
+    ).tap { @statuses_more_results = service.more_results? }
   end
 
   def perform_hashtags_search!

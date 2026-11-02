@@ -17,6 +17,8 @@ class Api::V2::SearchController < Api::BaseController
   before_action :require_valid_pagination_options!
   before_action :handle_fasp_requests
 
+  after_action :insert_pagination_headers, if: :user_signed_in?
+
   def index
     @search = Search.new(search_results)
     render json: @search, serializer: REST::SearchSerializer
@@ -62,12 +64,32 @@ class Api::V2::SearchController < Api::BaseController
   end
 
   def search_results
-    SearchService.new.call(
+    search_service.call(
       params[:q],
       current_account,
       limit_param(RESULTS_LIMIT),
       combined_search_params
     )
+  end
+
+  def search_service
+    @search_service ||= SearchService.new
+  end
+
+  def next_path
+    api_v2_search_url pagination_search_params(offset_param + limit_param(RESULTS_LIMIT)) if search_service.more_results?
+  end
+
+  def prev_path
+    api_v2_search_url pagination_search_params([offset_param - limit_param(RESULTS_LIMIT), 0].max) if offset_param.positive?
+  end
+
+  def pagination_search_params(offset)
+    pagination_params(params.permit(:q, :type, :account_id, :min_id, :max_id, :following, :exclude_unreviewed).merge(offset: offset))
+  end
+
+  def offset_param
+    params[:offset].to_i
   end
 
   def combined_search_params

@@ -92,6 +92,35 @@ RSpec.describe 'Search API' do
         end
       end
 
+      context 'when searching statuses', :search do
+        let(:author) { Fabricate(:account, indexable: true) }
+        let(:muted) { Fabricate(:account, indexable: true) }
+
+        before do
+          Fabricate.times(2, :status, account: author, text: 'zebrafish')
+          Fabricate(:status, account: muted, text: 'zebrafish')
+          user.account.mute!(muted)
+        end
+
+        it 'links to the next page when filtering made the page short' do
+          get '/api/v2/search', headers: headers, params: { q: 'zebrafish', type: 'statuses', limit: 2 }
+
+          expect(response)
+            .to have_http_status(200)
+            .and have_http_link_header(api_v2_search_url(limit: 2, q: 'zebrafish', type: 'statuses', offset: 2)).for(rel: 'next')
+          expect(response.parsed_body[:statuses].size).to eq 1
+        end
+
+        it 'does not link to a next page on the last page' do
+          get '/api/v2/search', headers: headers, params: { q: 'zebrafish', type: 'statuses', limit: 2, offset: 2 }
+
+          expect(response)
+            .to have_http_status(200)
+            .and have_http_link_header(api_v2_search_url(limit: 2, q: 'zebrafish', type: 'statuses', offset: 0)).for(rel: 'prev')
+          expect(response.headers['Link']).to_not include('rel="next"')
+        end
+      end
+
       context 'when search raises syntax error' do
         before { allow(Search).to receive(:new).and_raise(SearchQueryTransformer::QueryError) }
 

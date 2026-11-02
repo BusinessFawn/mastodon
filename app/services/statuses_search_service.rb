@@ -26,11 +26,19 @@ class StatusesSearchService < BaseService
     end
   end
 
+  # Whether there are results past the current page. Results are filtered
+  # after the limit is applied, so a short page does not mean the end.
+  def more_results?
+    @more_results || false
+  end
+
   private
 
   def status_search_results
     request             = parsed_query.request
-    results             = elastic_stoplight_wrapper.run { request.timeout(ES_QUERY_TIMEOUT).collapse(field: :id).order(id: { order: :desc }).limit(@limit).offset(@offset).objects.compact }
+    results             = elastic_stoplight_wrapper.run { request.timeout(ES_QUERY_TIMEOUT).collapse(field: :id).order(id: { order: :desc }).limit(@limit + 1).offset(@offset).objects }
+    @more_results       = results.size > @limit
+    results             = results.take(@limit).compact
     account_ids         = results.map(&:account_id)
     account_domains     = results.map(&:account_domain)
 
