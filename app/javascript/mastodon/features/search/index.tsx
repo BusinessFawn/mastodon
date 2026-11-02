@@ -33,34 +33,16 @@ const messages = defineMessages({
   search: { id: 'navigation_bar.search', defaultMessage: 'Search' },
 });
 
-const INITIAL_PAGE_LIMIT = 10;
 const INITIAL_DISPLAY = 4;
 
-const hidePeek = <T,>(list: T[]) => {
-  if (
-    list.length > INITIAL_PAGE_LIMIT &&
-    list.length % INITIAL_PAGE_LIMIT === 1
-  ) {
-    return list.slice(0, -2);
-  } else {
-    return list;
-  }
-};
-
 const renderAccounts = (accountIds: string[]) =>
-  hidePeek<string>(accountIds).map((id) => (
-    <Account key={id} id={id} reference='search' />
-  ));
+  accountIds.map((id) => <Account key={id} id={id} reference='search' />);
 
 const renderHashtags = (hashtags: HashtagType[]) =>
-  hidePeek<HashtagType>(hashtags).map((hashtag) => (
-    <Hashtag key={hashtag.name} hashtag={hashtag} />
-  ));
+  hashtags.map((hashtag) => <Hashtag key={hashtag.name} hashtag={hashtag} />);
 
 const renderStatuses = (statusIds: string[]) =>
-  hidePeek<string>(statusIds).map((id) => (
-    <Status contextType='search' key={id} id={id} />
-  ));
+  statusIds.map((id) => <Status contextType='search' key={id} id={id} />);
 
 type SearchType = 'all' | ApiSearchType;
 
@@ -80,6 +62,7 @@ export const SearchResults: React.FC<{ multiColumn: boolean }> = ({
   const [type, setType] = useSearchParam('type');
   const isLoading = useAppSelector((state) => state.search.loading);
   const results = useAppSelector((state) => state.search.results);
+  const next = useAppSelector((state) => state.search.next);
   const dispatch = useAppDispatch();
   const mappedType = typeFromParam(type);
   const trimmedValue = q?.trim() ?? '';
@@ -117,12 +100,7 @@ export const SearchResults: React.FC<{ multiColumn: boolean }> = ({
     }
   }, [dispatch, mappedType]);
 
-  // We request 1 more result than we display so we can tell if there'd be a next page
-  const hasMore =
-    mappedType !== 'all' && results
-      ? results[mappedType].length > INITIAL_PAGE_LIMIT &&
-        results[mappedType].length % INITIAL_PAGE_LIMIT === 1
-      : false;
+  const hasMore = mappedType !== 'all' && !!next;
 
   let filteredResults;
 

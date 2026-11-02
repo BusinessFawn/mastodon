@@ -16,6 +16,7 @@ interface State {
   type?: ApiSearchType;
   loading: boolean;
   results?: SearchResults;
+  next?: string;
 }
 
 const initialState: State = {
@@ -24,19 +25,21 @@ const initialState: State = {
   type: undefined,
   loading: false,
   results: undefined,
+  next: undefined,
 };
 
 export const searchReducer = createReducer(initialState, (builder) => {
   builder.addCase(submitSearch.fulfilled, (state, action) => {
     state.q = action.meta.arg.q;
     state.type = action.meta.arg.type;
-    state.results = createSearchResults(action.payload);
+    state.results = createSearchResults(action.payload.results);
+    state.next = action.payload.next;
     state.loading = false;
   });
 
   builder.addCase(expandSearch.fulfilled, (state, action) => {
     const type = action.meta.arg.type;
-    const results = createSearchResults(action.payload);
+    const results = createSearchResults(action.payload.results);
 
     state.type = type;
     state.results = {
@@ -53,6 +56,7 @@ export const searchReducer = createReducer(initialState, (builder) => {
         ? [...state.results.collections, ...results.collections]
         : results.collections,
     };
+    state.next = action.payload.next;
     state.loading = false;
   });
 
@@ -67,6 +71,7 @@ export const searchReducer = createReducer(initialState, (builder) => {
       state.loading = true;
       if (action.type === submitSearch.pending.type) {
         state.results = undefined;
+        state.next = undefined;
       }
     },
   );

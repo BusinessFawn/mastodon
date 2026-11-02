@@ -1,6 +1,6 @@
 import { createAction } from '@reduxjs/toolkit';
 
-import { apiGetSearch } from 'mastodon/api/search';
+import { apiGetPaginatedSearch, apiGetSearch } from 'mastodon/api/search';
 import type { ApiSearchType } from 'mastodon/api_types/search';
 import type {
   RecentSearch,
@@ -27,29 +27,33 @@ export const submitSearch = createDataLoadingThunk(
   async ({ q, type }: { q: string; type?: ApiSearchType }, { getState }) => {
     const signedIn = !!getState().meta.get('me');
 
-    return apiGetSearch({
+    return apiGetPaginatedSearch({
       q,
       type,
       resolve: signedIn,
-      limit: 11,
+      limit: 10,
     });
   },
-  async (data, { dispatch }) => {
-    if (data.accounts.length > 0) {
-      dispatch(importFetchedAccounts(data.accounts));
-      dispatch(fetchRelationships(data.accounts.map((account) => account.id)));
+  async ({ results, links }, { dispatch }) => {
+    const next = links.refs.find((link) => link.rel === 'next');
+
+    if (results.accounts.length > 0) {
+      dispatch(importFetchedAccounts(results.accounts));
+      dispatch(
+        fetchRelationships(results.accounts.map((account) => account.id)),
+      );
     }
 
-    if (data.statuses.length > 0) {
-      dispatch(importFetchedStatuses(data.statuses));
+    if (results.statuses.length > 0) {
+      dispatch(importFetchedStatuses(results.statuses));
     }
 
-    if (data.collections.length > 0) {
-      dispatch(importFetchedCollections(data.collections));
-      await fetchAccountsForCollectionPreview(data.collections, dispatch);
+    if (results.collections.length > 0) {
+      dispatch(importFetchedCollections(results.collections));
+      await fetchAccountsForCollectionPreview(results.collections, dispatch);
     }
 
-    return data;
+    return { results, next: next?.uri };
   },
   {
     useLoadingBar: false,
@@ -58,37 +62,36 @@ export const submitSearch = createDataLoadingThunk(
 
 export const expandSearch = createDataLoadingThunk(
   'search/expand',
-  async ({ type }: { type: ApiSearchType }, { getState }) => {
-    const q = getState().search.q;
-    const results = getState().search.results;
-    const offset = results?.[type].length;
+  async (_args: { type: ApiSearchType }, { getState }) => {
+    const nextUrl = getState().search.next;
 
-    return apiGetSearch({
-      q,
-      type,
-      limit: 10,
-      offset,
-    });
+    return apiGetPaginatedSearch(undefined, nextUrl);
   },
-  async (data, { dispatch }) => {
-    if (data.accounts.length > 0) {
-      dispatch(importFetchedAccounts(data.accounts));
-      dispatch(fetchRelationships(data.accounts.map((account) => account.id)));
+  async ({ results, links }, { dispatch }) => {
+    const next = links.refs.find((link) => link.rel === 'next');
+
+    if (results.accounts.length > 0) {
+      dispatch(importFetchedAccounts(results.accounts));
+      dispatch(
+        fetchRelationships(results.accounts.map((account) => account.id)),
+      );
     }
 
-    if (data.statuses.length > 0) {
-      dispatch(importFetchedStatuses(data.statuses));
+    if (results.statuses.length > 0) {
+      dispatch(importFetchedStatuses(results.statuses));
     }
 
-    if (data.collections.length > 0) {
-      dispatch(importFetchedCollections(data.collections));
-      await fetchAccountsForCollectionPreview(data.collections, dispatch);
+    if (results.collections.length > 0) {
+      dispatch(importFetchedCollections(results.collections));
+      await fetchAccountsForCollectionPreview(results.collections, dispatch);
     }
 
-    return data;
+    return { results, next: next?.uri };
   },
   {
     useLoadingBar: true,
+    condition: (_args, { getState }) =>
+      !!getState().search.next && !getState().search.loading,
   },
 );
 
